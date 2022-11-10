@@ -5,6 +5,7 @@ import { DocumentNode } from 'graphql';
 type OperationTypeNode = any;
 import { equal } from '@wry/equality';
 
+import { DeepMerger } from "../utilities"
 import { ApolloLink, execute, FetchResult } from '../link/core';
 import { isExecutionPatchIncrementalResult } from '../utilities/common/incrementalResult';
 import { Cache, ApolloCache, canonicalStringify } from '../cache';
@@ -351,16 +352,69 @@ export class QueryManager<TStore> {
     cache = this.cache,
   ): Promise<FetchResult<TData>> {
     let { result } = mutation;
+    console.log({ result: JSON.stringify(result, null, 2) });
     const cacheWrites: Cache.WriteOptions[] = [];
     const skipCache = mutation.fetchPolicy === "no-cache";
+    // const readCache = () => this.cache.getDiff(mutation.variables);
+    console.log('incremental' in result && isNonEmptyArray(result.incremental));
+    if ('incremental' in result && isNonEmptyArray(result.incremental)) {
+      console.log(cacheWrites);
+      // Read the current query result from the store.
+      // const diff = cache.diff<TData>({
+      //   id: "ROOT_MUTATION",
+      //   // The cache complains if passed a mutation where it expects a
+      //   // query, so we transform mutations and subscriptions to queries
+      //   // (only once, thanks to this.transformCache).
+      //   query: this.transform(mutation.document).asQuery,
+      //   variables: mutation.variables,
+      //   optimistic: false,
+      //   returnPartialData: true,
+      // });
+      // console.log({ diff: JSON.stringify(diff, null, 2) });
+      // console.log({ currentQueryResult });
+      // let mergedData = currentQueryResult;
+      // const merger = new DeepMerger();
+      // result.incremental.forEach(({ data, path, errors }) => {
+      //   for (let i = path.length - 1; i >= 0; --i) {
+      //     const key = path[i];
+      //     const isNumericKey = !isNaN(+key);
+      //     const parent: Record<string | number, any> = isNumericKey ? [] : {};
+      //     parent[key] = data;
+      //     data = parent as typeof data;
+      //   }
+      //   // if (errors) {
+      //   //   graphQLErrors.push(...errors);
+      //   // }
+      //   mergedData = merger.merge(mergedData, data);
+      // });
+      // console.log({mergedData})
+      // // @ts-ignore
+      // result.data = mergedData;
+    }
 
     if (!skipCache && shouldWriteResult(result, mutation.errorPolicy)) {
-      cacheWrites.push({
-        result: result.data,
-        dataId: 'ROOT_MUTATION',
-        query: mutation.document,
-        variables: mutation.variables,
-      });
+      if (result.data) {
+        cacheWrites.push({
+          result: result.data,
+          dataId: 'ROOT_MUTATION',
+          query: mutation.document,
+          variables: mutation.variables,
+        });
+      } else if (isExecutionPatchIncrementalResult(result)) {
+        const diff = cache.diff<TData>({
+          id: "ROOT_MUTATION",
+          // The cache complains if passed a mutation where it expects a
+          // query, so we transform mutations and subscriptions to queries
+          // (only once, thanks to this.transformCache).
+          query: this.transform(mutation.document).asQuery,
+          variables: mutation.variables,
+          optimistic: false,
+          returnPartialData: true,
+        });
+        console.log({ diff });
+        console.log("HELLO")
+      }
+
 
       const { updateQueries } = mutation;
       if (updateQueries) {

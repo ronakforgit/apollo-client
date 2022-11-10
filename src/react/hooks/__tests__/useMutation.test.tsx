@@ -9,7 +9,7 @@ import fetchMock from "fetch-mock";
 
 import { ApolloClient, ApolloLink, ApolloQueryResult, Cache, NetworkStatus, Observable, ObservableQuery, TypedDocumentNode } from '../../../core';
 import { InMemoryCache } from '../../../cache';
-import { itAsync, MockedProvider, mockSingleLink, subscribeAndCount } from '../../../testing';
+import { itAsync, MockedProvider, MockSubscriptionLink, mockSingleLink, subscribeAndCount } from '../../../testing';
 import { ApolloProvider } from '../../context';
 import { useQuery } from '../useQuery';
 import { useMutation } from '../useMutation';
@@ -2204,6 +2204,103 @@ describe('useMutation Hook', () => {
       userEvent.click(screen.getByRole('button', { name: /mutate/i }));
 
       await screen.findByText('item 3');
+    });
+  });
+  describe('defer', () => {
+    it.only('should handle deferred queries', async () => {
+      const MUTATION_1 = gql`
+        mutation DoSomething {
+          doSomething {
+            id
+            ... @defer {
+              message
+            }
+          }
+        }
+      `;
+
+      const link = new MockSubscriptionLink();
+
+      const client = new ApolloClient({
+        link,
+        cache: new InMemoryCache(),
+      });
+
+      const useCreateTodo = () => {
+        const [createTodo, { loading, data }] = useMutation(
+          MUTATION_1
+        );
+        useEffect(() => {
+          createTodo();
+        }, []);
+
+        return { loading, data };
+      };
+
+      const { result, waitForNextUpdate } = renderHook(
+        () => useCreateTodo(),
+        {
+          wrapper: ({ children }) => (
+            <ApolloProvider client={client}>
+              {children}
+            </ApolloProvider>
+          ),
+        },
+      );
+
+      console.log(result.current);
+      expect(result.current.loading).toBe(true);
+      expect(result.current.data).toBe(undefined);
+      setTimeout(() => {
+        link.simulateResult({
+          result: {
+            data: {
+              doSomething: {
+                id: 'Hello world',
+                __typename: 'Greeting',
+              },
+            },
+            hasNext: true
+          },
+        });
+      });
+
+      await waitForNextUpdate();
+      expect(result.current.loading).toBe(false);
+      expect(result.current.data).toEqual({
+        doSomething: {
+          id: 'Hello world',
+          __typename: 'Greeting',
+        },
+      });
+
+      setTimeout(() => {
+        link.simulateResult({
+          result: {
+            incremental: [{
+              data: {
+                message: 'something',
+                __typename: 'Greeting',
+              },
+              path: ['doSomething'],
+            }],
+            hasNext: false
+          },
+        });
+      });
+
+      await waitForNextUpdate();
+      expect(result.current.loading).toBe(true);
+      // expect(result.current.data).toEqual({
+      //   greeting: {
+      //     message: 'Hello world',
+      //     __typename: 'Greeting',
+      //     recipient: {
+      //       name: 'Alice',
+      //       __typename: 'Person',
+      //     },
+      //   },
+      // });
     });
   });
 });
