@@ -1,0 +1,102 @@
+pipeline:
+  projectIdentifier: NgLabs
+  orgIdentifier: default
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.gitforronak
+        repoName: apollographql/apollo-client
+        build: <+input>
+  stages:
+    - parallel:
+        - stage:
+            identifier: builddf
+            type: CI
+            name: Test
+            spec:
+              cloneCodebase: true
+              platform:
+                os: Linux
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Jest suite with coverage
+                      identifier: Jest_suite_with_coverage
+                      spec:
+                        connectorRef: account.harnessImage
+                        image: cimg/node:19.5.0
+                        shell: Sh
+                        command: |-
+                          sudo npm run ci:precheck
+                          sudo npm version
+                          sudo npm ci
+                          sudo npm run test:ci
+                        reports:
+                          type: JUnit
+                          spec:
+                            paths:
+                              - reports/junit/js-test-results.xml
+                        envVariables:
+                          JEST_JUNIT_OUTPUT_FILE: reports/junit/js-test-results.xml
+              sharedPaths:
+                - /home/ubuntu/
+        - stage:
+            identifier: builddfdsdsd
+            type: CI
+            name: lint
+            spec:
+              cloneCodebase: true
+              platform:
+                os: Linux
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: lint
+                      identifier: lint
+                      spec:
+                        connectorRef: account.harnessImage
+                        image: cimg/node:19.5.0
+                        shell: Sh
+                        command: |-
+                          sudo npm version
+                          sudo npm ci
+                          sudo npm run lint
+        - stage:
+            identifier: builddfss
+            type: CI
+            name: Filesize
+            spec:
+              cloneCodebase: true
+              platform:
+                os: Linux
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: filesize
+                      identifier: Jest_suite_with_coverage
+                      spec:
+                        connectorRef: account.harnessImage
+                        image: cimg/node:19.5.0
+                        shell: Sh
+                        command: |-
+                          sudo npm version
+                          sudo npm ci
+                          sudo npm run bundlesize
+  identifier: apolloclientinlinetest
+  name: apollo-client-inline-test
